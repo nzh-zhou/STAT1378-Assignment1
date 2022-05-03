@@ -1,0 +1,255 @@
+---
+title: "STAT1378 Assignment"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+```
+
+<style>
+div.blue pre { background-color:lightcyan; }
+div.blue pre.r { background-color:lavender; }
+</style>
+
+<div class = "blue">
+
+**Exercise 1** [20 points] &nbsp; &nbsp;As output of this exercise, you are required to submit an R script (`A3_ex1.R`) able to complete the operations listed below.
+
+1. Read the file `A3_Ex1.csv` in a data frame or tibble `X`
+```{r, message = FALSE}
+library(tidyverse)
+X <- read_csv("A3_Ex1.csv")
+```
+2. Show the structure of `X` (`str(X)`)
+```{r}
+str(X)
+```
+3. Compute and show the total sum of the expenditures
+```{r}
+sum(X$expenditure)
+```
+4. Compute and show the sum of the expenditures in March
+```{r}
+X %>% filter(month == "Mar") %>% select(expenditure) %>% sum()
+```
+5. Compute and show the sum of the expenditures in March when the weather is cloudy
+```{r}
+X %>% filter(month == "Mar", weather == "cloudy") %>% 
+  select(expenditure) %>% sum()
+```
+6. Find and show the month with the highest expenditure
+```{r}
+X %>% group_by(month) %>% summarise(sum = sum(expenditure)) %>% 
+  filter(sum == max(sum))
+```
+
+**Exercise 2 [20 points]** &nbsp; &nbsp;As output of this exercise, you are required to submit an R script (`A3_ex2.R`) able to complete the operations listed below.
+Please note: as there is random number generation involved, it is of paramount importance that we are able to generate the same random numbers. In order to achieve this, at the beginning of the script, you need to
+run a command to set the random seed.
+
+0. Run `set.seed(2048)`
+```{r}
+set.seed(2048)
+```
+1. Create a list `X` with `N = 100` slots, and in each slot create a list of two elements:
+* name, along the lines of `“n1”`, `“n2”`, `“n3”`, ..., `“n100”`
+* vect, a numeric vector of 5 elements sampled from a normal distribution with $\mu = 23$ and $\sigma = 5$.
+```{r}
+X <- map(1:100, ~ list(name = glue::glue("n{.x}"),
+                  vect = rnorm(5, mean = 23, sd = 5)))
+```
+2. Show the structure of `X` (`str(X)`).
+```{r}
+str(X)
+```
+3. Compute the sum of the values of `vect` in each slot and show the output. The output must be a vector of 100 values.
+```{r}
+map_dbl(1:100, ~ sum(X[[.x]]$vect))
+```
+4. Create a matrix `M` (not a data frame) of size 100× 5 using the 100 `vect` objects in the slots of `X`.
+```{r}
+Y <- vector("list", 100)
+for (i in 1:100) {
+  Y[[i]] <- X[[i]]$vect
+}
+M <- matrix(unlist(Y), byrow = TRUE, ncol = 5)
+```
+5. Use a `for` loop to compute the sums by columns of `M` and show the result.
+```{r}
+sums_M <- double(5)
+for (i in 1:5) {
+  sums_M[i] <- M[, i] %>% sum()
+}
+sums_M
+```
+
+**Exercise 3 [60 points]** &nbsp; &nbsp;In this exercise you are required to read the files `A3_Ex3_signif.csv` and `A3_Ex3_not_signif.csv` and write the code to test the hypothesis
+
+$H_0: \beta = 0$ against $H_1 : \beta \neq 0$,
+
+where $\beta$ is the slope parameter of a simple linear model
+
+$Y_i = \alpha + \beta X_i + \epsilon_i$,
+
+with $\epsilon_i ∼ N(0, \sigma)$ and $i \in 1, . . . , N$. $N$ is the sample size.
+
+The structure of the test is:
+
+1. State the Null Hypothesis and the Alternative Hypothesis
+2. Check the assumptions, plotting (a) $y$ vs $x$, (b) the scatter plot of the regression residuals $\epsilon_i$ vs the fitted values $\hat{y}$ and (c) the histogram of the regression residuals $\epsilon_i$. Only 3 graphs are required for this point, there is no need to comment.
+3. Perform the linear regression and report the values of the estimated slope $\hat{\beta}$, the 95% CIs for $\beta$, the value of $t$, the degree of freedom $df$, and the p-value.
+4. Write the “decision” of the test, either rejection or not rejection of the Null Hypothesis, at 5% significance level.
+5. Write a conclusion to the test, i.e., one or two sentences in English in which you explain the results and describe the relationship or lack of relationship between $X$ and $Y$.
+
+The linear regression model must be run with the R command `lm()`. Some of the information needed to complete the exercise can be directly extracted from the object in output (after its examination with the command `str()` or use the `broom` package), while other parts may need to be computed.
+
+As output, you need to produce a single file `A3_ex3.R` containing the code to generate the required results.
+
+You can solve this exercise at different levels.
+
+* Pass [24 points]: writing a sequence of commands that work only on the given data sets. In this case, you need to run the test twice, once per data set, and each time you need to write the conclusion that is correct for the specific case you are considering.
+* Credit [10 points]: As at the pass level, but writing the conclusions programmatically, i.e., using a function that takes in input the values of $\hat{\beta}$ and the p-value and is able to output the correct message.
+* Distinction [10 points]: fully solving the problem with the following functions, called sequentially from a script:
+  - `hypothesis(file_name)`
+  - `assumptions(file_name)` (Please note, you will need to run the linear regression model to get the residuals)
+  - `fit1 <- fit(file_name)`
+  - `decision(fit1)`
+  - `conclusion(fit1)`
+* High Distinction [16 ponts]: As at the distinction level, but the function `fit(file_name)` returns an object of class `mylm`. Methods named `decision.mylm(fit)` and `conclusion.mylm(fit)` can be called with `decision(fit)` and `conclusion(fit)`. The full test can be called with a function `mytest(file_name)`, which calls everything needed and outputs a nicely formatted report (i.e. a sequence of `cat` and `plot` (or `ggplot`) commands from all the functions called sequentially).
+```{r}
+# Setup
+library(glue)
+library(patchwork)
+library(tidyverse)
+signif <- read_csv("A3_Ex3_signif.csv")
+not_signif <- read_csv("A3_Ex3_not_signif.csv")
+
+# The function `extract` makes a copy of all the functions that it 
+# encloses in its runtime environment into the Global Environment
+extract <- function() {
+  
+  # Function for inputting data frame for linear regression modeling
+  input <- function(df, X = "X", Y = "Y") {
+    X <- df[[X]]
+    Y <- df[[Y]]
+    assign("lm1", lm(Y ~ X), envir = parent.env(environment()))
+    assign("df", tibble(X = X, Y = Y), envir = parent.env(environment()))
+  }
+  
+  # Functions for testing linear regression
+  # Part 1
+  hypothesis <- function() {
+    glue("testing H_0: beta = 0 against H_1: beta != 0")
+  }
+  
+  # Part 2
+  assumptions <- function() {
+    (ggplot(df, aes(X, Y)) + geom_point(size = 0.5) + 
+       geom_smooth(method = lm, formula = y ~ x) + ggtitle("X vs. Y") +
+       ggplot(data.frame(x = lm1$fitted.values, y = lm1$residuals), 
+              aes(x, y)) + geom_point(size = 0.5) + 
+       geom_smooth(method = lm, se = FALSE, formula = y ~ x) + 
+       labs(title = "Regression residuals vs. fitted values", 
+            x = "fitted values", y = "residuals")) /
+      ggplot(data.frame(x = lm1$residuals), aes(x)) +
+      geom_histogram(bins = 30) + 
+      labs(title = "Histogram of regression residuals", 
+           x = "residual bins")
+  }
+  
+  # Part 3
+  fit <- function() {
+    x <- summary(lm1)$coefficients[2, 4]
+    cat(glue("beta_hat = {summary(lm1)$coefficients[2, 1]}"), 
+        glue("95% confindence interval for beta: [{confint(lm1)[2, 1]}, {confint(lm1)[2, 2]}]"), 
+        glue("t value: {summary(lm1)$coefficients[2, 3]}"), 
+        glue("degrees of freedom: {summary(lm1)$df[2]}"), 
+        glue("p-value: {summary(lm1)$coefficients[2, 4]}"), sep = "\n")
+    class(x) <- "mylm"
+    invisible(x)
+  }
+  
+  # Part 4
+  decision.mylm <- function(fit) {
+    glue(c("H_0 is retained at a 5% significance level", 
+           "H_0 is rejected at a 5% significance level")[as.numeric(fit < 0.05) + 1])
+  }
+  decision.default <- function(fit) {
+    stop("Class of argument is not 'mylm'. Have you tried turning it off and on again?")
+  }
+  decision <- function(fit) {
+    UseMethod("decision")
+  }
+  
+  # Part 5
+  conclusion.mylm <- function(fit) {
+    glue(c("Conclusion: since the p-value is greater than 0.05, at a 5% significance level, the null hypothesis is retained since there is insufficient evidence to conclude that there is a linear relationship between variables X and Y", 
+           "Conclusion: since the p-value is less than 0.05, at a 5% significance level, there is sufficient evidence to reject the null hypothesis in favour of the alternative and conclude that there is a linear relationship between variables X and Y")[as.numeric(fit < 0.05) + 1])
+  }
+  conclusion.default <- function(fit) {
+    stop("Class of argument is not 'mylm'. Maybe try using more brain cells.")
+  }
+  conclusion <- function(fit) {
+    UseMethod("conclusion")
+  }
+  
+  # Full test
+  mytest <- function() {
+    cat(hypothesis(), "\n \n", sep = "")
+    print(invisible(assumptions()))
+    f <- fit()
+    cat("\n", decision(f), "\n \n",  conclusion(f), sep = "")
+  }
+  
+  # List containing all the required functions
+  functions <- list(input = input, hypothesis = hypothesis, 
+                    assumptions = assumptions, fit = fit, 
+                    decision = decision, conclusion = conclusion, 
+                    mytest = mytest, decision.mylm = decision.mylm, 
+                    decision.default = decision.default, 
+                    conclusion.mylm = conclusion.mylm, 
+                    conclusion.default = conclusion.default)
+  
+  # Extract all functions into the Global Environment
+  for (i in names(functions)) {
+    assign(i, functions[[i]], envir = globalenv())
+  }
+}
+
+# Extract functions
+extract()
+
+# Input `signif` data frame into the environment enclosed by the function 
+# `extract`
+input(signif)
+# Part 1
+hypothesis()
+# Part 2
+assumptions()
+# Part 3
+f <- fit()
+# Part 4
+decision(f)
+# Part 5
+conclusion(f)
+# Full test
+mytest()
+
+# Input `not_signif` data frame into the environment enclosed by the 
+# function `extract`
+input(not_signif)
+# Part 1
+hypothesis()
+# Part 2
+assumptions()
+# Part 3
+f <- fit()
+# Part 4
+decision(f)
+# Part 5
+conclusion(f)
+# Full test
+mytest()
+```
+<div class = "blue">
